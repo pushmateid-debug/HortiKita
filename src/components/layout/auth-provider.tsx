@@ -3,7 +3,7 @@
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { auth, firestore } from "@/lib/firebase/auth";
+import { auth, ensureMemberProfile, firestore, profileLoadError } from "@/lib/firebase/auth";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import type { UserProfile } from "@/types/user";
 
@@ -32,9 +32,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     let active = true;
     let unsubscribeProfile: (() => void) | undefined;
+    let creatingProfile = false;
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
       if (!active) return;
       unsubscribeProfile?.();
+      creatingProfile = false;
       setUser(nextUser);
       setProfile(null);
       setError(null);
@@ -58,13 +60,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             cohortId: role === "cohortAdmin" && typeof data.cohortId === "string" ? data.cohortId : null,
             role,
           });
+          setLoading(false);
+        } else if (snapshot.metadata.fromCache) {
+          setError(profileLoadError({ code: "unavailable" }));
+          setLoading(false);
         } else {
-          setError("Profil akun belum tersedia. Keluar lalu masuk kembali untuk menyiapkan profil.");
+          if (creatingProfile) return;
+          creatingProfile = true;
+          void ensureMemberProfile(nextUser).catch((cause: unknown) => {
+            if (!active) return;
+            creatingProfile = false;
+            setError(profileLoadError(cause));
+            setLoading(false);
+          });
         }
-        setLoading(false);
-      }, () => {
+      }, (cause: Error) => {
         if (!active) return;
-        setError("Profil belum dapat dimuat. Periksa izin Firestore dan koneksi internet.");
+        setError(profileLoadError(cause));
         setLoading(false);
       });
     });

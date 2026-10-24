@@ -24,8 +24,12 @@ export function LoginForm() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (user && profile) router.replace(profile.role === "cohortAdmin" || profile.role === "platformAdmin" ? "/dashboard" : `/profile/${profile.uid}`);
-  }, [user, profile, router]);
+    if (user && !loading) {
+      router.replace(profile?.role === "cohortAdmin" || profile?.role === "platformAdmin"
+        ? "/dashboard"
+        : `/profile/${profile?.uid ?? user.uid}`);
+    }
+  }, [user, profile, loading, router]);
 
   async function handleEmailLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

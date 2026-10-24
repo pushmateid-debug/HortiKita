@@ -30,6 +30,20 @@ function requireFirebase() {
   return { auth, firestore };
 }
 
+export function profileLoadError(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  if (code === "unavailable") {
+    return "Login berhasil, tetapi Firestore belum dapat dihubungi. Pastikan Cloud Firestore API aktif, database (default) tersedia di project Firebase ini, dan koneksi internet berfungsi.";
+  }
+  if (code === "permission-denied") {
+    return "Login berhasil, tetapi Security Rules Firestore menolak akses profil. Periksa aturan yang aktif untuk dokumen users/{uid}.";
+  }
+  if (code === "not-found" || code === "failed-precondition") {
+    return "Login berhasil, tetapi database Firestore belum tersedia atau belum siap di project Firebase ini.";
+  }
+  return "Login berhasil, tetapi profil belum dapat dimuat atau disiapkan. Periksa koneksi Firestore dan aturan akses.";
+}
+
 export async function getUserProfile(user: User) {
   const { firestore } = requireFirebase();
   const profileRef = doc(firestore, "users", user.uid);
@@ -48,7 +62,7 @@ export async function getUserProfile(user: User) {
   } satisfies UserProfile;
 }
 
-async function createMemberProfile(user: User, displayName?: string) {
+export async function ensureMemberProfile(user: User, displayName?: string) {
   const { firestore } = requireFirebase();
   const profileRef = doc(firestore, "users", user.uid);
   const existingProfile = await getDoc(profileRef);
@@ -76,15 +90,13 @@ export async function registerWithEmail(
   const { auth } = requireFirebase();
   const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
   await updateProfile(result.user, { displayName: displayName.trim() });
-  await createMemberProfile(result.user, displayName);
+  await ensureMemberProfile(result.user, displayName);
   return result.user;
 }
 
 export async function signInWithEmail(email: string, password: string) {
   const { auth } = requireFirebase();
-  const result = await signInWithEmailAndPassword(auth, email.trim(), password);
-  await createMemberProfile(result.user);
-  return result;
+  return signInWithEmailAndPassword(auth, email.trim(), password);
 }
 
 export async function signInWithGoogle() {
@@ -92,7 +104,6 @@ export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   const result = await signInWithPopup(auth, provider);
-  await createMemberProfile(result.user);
   return result.user;
 }
 

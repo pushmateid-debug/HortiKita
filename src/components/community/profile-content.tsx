@@ -25,7 +25,7 @@ const cohortOptions = [
 
 export function ProfileContent({ username }: { username: string }) {
   const router = useRouter();
-  const { user, profile, loading, configured } = useAuth();
+  const { user, profile, loading, configured, error: authError } = useAuth();
   const [profileForm, setProfileForm] = useState<EditableProfile | null>(null);
   const [selectedCohort, setSelectedCohort] = useState("");
   const [membershipStatus, setMembershipStatus] = useState<MembershipRequestStatus | null>(null);
@@ -139,7 +139,7 @@ export function ProfileContent({ username }: { username: string }) {
 
   if (configured && loading) return <div className="loading-state" role="status">Memuat profil...</div>;
   if (!configured) return <div className="access-card"><span className="access-icon">◉</span><p className="eyebrow">Profil anggota</p><h1>@{username}</h1><p>Profil pengguna akan tersedia setelah anggota terdaftar dan mengatur informasi publiknya.</p><Link className="button" href="/register">Buat akun HortiKita</Link></div>;
-  if (!user || !ownsProfile || !profile) return <div className="access-card"><span className="access-icon">◉</span><p className="eyebrow">Profil anggota</p><h1>Profil tidak tersedia</h1><p>Profil ini belum dipublikasikan atau tidak dapat diakses. Informasi akun pribadi hanya dibaca oleh pemiliknya.</p><Link className="button button-outline" href="/login">Masuk ke akun</Link></div>;
+  if (!user || !ownsProfile || !profile) return <div className="access-card"><span className="access-icon">◉</span><p className="eyebrow">Profil anggota</p><h1>Profil tidak tersedia</h1><p>{authError ?? "Profil ini belum dipublikasikan atau tidak dapat diakses. Informasi akun pribadi hanya dibaca oleh pemiliknya."}</p><Link className="button button-outline" href="/login">Masuk ke akun</Link></div>;
   if (!profileForm) return <div className="loading-state" role="status">Menyiapkan profil...</div>;
 
   const initials = profile.displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("id");
