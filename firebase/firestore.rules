@@ -14,6 +14,22 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function validCohortId(cohortId) {
+      return cohortId is string && cohortId.matches('^angkatan-[0-9]{2,4}$');
+    }
+
+    function validEditableProfile(profileData) {
+      return profileData.displayName is string
+        && profileData.displayName.size() >= 2
+        && profileData.displayName.size() <= 80
+        && profileData.username is string
+        && profileData.username.matches('^[a-z0-9._-]{3,24}$')
+        && profileData.bio is string
+        && profileData.bio.size() <= 280
+        && (profileData.photoURL == null
+          || (profileData.photoURL is string && profileData.photoURL.matches('^https://.*')));
+    }
+
     function platformAdmin() {
       return profileExists() && currentProfile().role == 'platformAdmin';
     }
@@ -24,17 +40,26 @@ service cloud.firestore {
         && currentProfile().cohortId == cohortId;
     }
 
+    function approvedCohortMember(cohortId) {
+      return signedIn()
+        && validCohortId(cohortId)
+        && exists(/databases/$(database)/documents/membershipRequests/$(request.auth.uid + '_' + cohortId))
+        && get(/databases/$(database)/documents/membershipRequests/$(request.auth.uid + '_' + cohortId)).data.status == 'approved';
+    }
+
     function classMember(classId) {
       return signedIn()
         && exists(/databases/$(database)/documents/classes/$(classId))
-        && request.auth.uid in get(/databases/$(database)/documents/classes/$(classId)).data.memberIds;
+        && (request.auth.uid in get(/databases/$(database)/documents/classes/$(classId)).data.memberIds
+          || approvedCohortMember(get(/databases/$(database)/documents/classes/$(classId)).data.cohortId));
     }
 
     function classAdmin(classId) {
       return platformAdmin()
         || (signedIn()
           && exists(/databases/$(database)/documents/classes/$(classId))
-          && request.auth.uid in get(/databases/$(database)/documents/classes/$(classId)).data.adminIds);
+          && (request.auth.uid in get(/databases/$(database)/documents/classes/$(classId)).data.adminIds
+            || cohortAdmin(get(/databases/$(database)/documents/classes/$(classId)).data.cohortId)));
     }
 
     match /users/{userId} {
@@ -42,19 +67,71 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.keys().hasOnly([
-          'displayName', 'username', 'email', 'photoURL', 'cohortId', 'role', 'createdAt', 'updatedAt'
+          'displayName', 'username', 'email', 'photoURL', 'bio', 'cohortId', 'role', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'displayName', 'username', 'email', 'photoURL', 'bio', 'cohortId', 'role', 'createdAt', 'updatedAt'
         ])
         && request.resource.data.role == 'member'
-        && request.resource.data.displayName is string
-        && request.resource.data.username is string;
-      allow update: if signedIn()
+        && request.resource.data.cohortId == null
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && validEditableProfile(request.resource.data);
+      allow update: if (signedIn()
         && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'username', 'photoURL', 'bio', 'updatedAt'
+        ])
         && request.resource.data.role == resource.data.role
+        && request.resource.data.cohortId == resource.data.cohortId
+        && request.resource.data.email == resource.data.email
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.keys().hasOnly([
-          'displayName', 'username', 'email', 'photoURL', 'cohortId', 'role', 'createdAt', 'updatedAt'
-        ]);
+        && request.resource.data.updatedAt == request.time
+        && validEditableProfile(request.resource.data))
+        || (platformAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'cohortId', 'updatedAt'])
+          && request.resource.data.role in ['member', 'cohortAdmin', 'platformAdmin']
+          && ((request.resource.data.role == 'cohortAdmin' && validCohortId(request.resource.data.cohortId))
+            || (request.resource.data.role != 'cohortAdmin' && request.resource.data.cohortId == null))
+          && request.resource.data.updatedAt == request.time);
       allow delete: if platformAdmin();
+    }
+
+    match /membershipRequests/{requestId} {
+      allow read: if signedIn()
+        && (resource.data.userId == request.auth.uid
+          || platformAdmin()
+          || cohortAdmin(resource.data.cohortId));
+      allow create: if signedIn()
+        && profileExists()
+        && requestId == request.auth.uid + '_' + request.resource.data.cohortId
+        && request.resource.data.userId == request.auth.uid
+        && validCohortId(request.resource.data.cohortId)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['userId', 'cohortId', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if signedIn()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.cohortId == resource.data.cohortId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'reviewedBy', 'reviewedAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && ((request.auth.uid == resource.data.userId
+            && resource.data.status == 'rejected'
+            && request.resource.data.reviewedBy == resource.data.reviewedBy
+            && request.resource.data.reviewedAt == resource.data.reviewedAt
+            && request.resource.data.status == 'pending')
+          || ((platformAdmin() || cohortAdmin(resource.data.cohortId))
+            && resource.data.status == 'pending'
+            && request.resource.data.status in ['approved', 'rejected']
+            && request.resource.data.reviewedBy == request.auth.uid
+            && request.resource.data.reviewedAt == request.time));
+      allow delete: if signedIn()
+        && request.auth.uid == resource.data.userId
+        && resource.data.status in ['pending', 'rejected'];
     }
 
     match /cohorts/{cohortId} {

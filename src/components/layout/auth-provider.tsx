@@ -47,13 +47,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!active) return;
         if (snapshot.exists()) {
           const data = snapshot.data();
+          const role = data.role === "platformAdmin" || data.role === "cohortAdmin" ? data.role : "member";
+          setError(null);
           setProfile({
             uid: nextUser.uid,
             displayName: data.displayName ?? nextUser.displayName ?? "Anggota HortiKita",
             username: data.username ?? nextUser.uid.slice(0, 8),
-            cohortId: typeof data.cohortId === "string" ? data.cohortId : null,
-            role: data.role === "platformAdmin" || data.role === "cohortAdmin" ? data.role : "member",
+            photoURL: data.photoURL === null ? null : typeof data.photoURL === "string" ? data.photoURL : nextUser.photoURL,
+            bio: typeof data.bio === "string" ? data.bio : "",
+            cohortId: role === "cohortAdmin" && typeof data.cohortId === "string" ? data.cohortId : null,
+            role,
           });
+        } else {
+          setError("Profil akun belum tersedia. Keluar lalu masuk kembali untuk menyiapkan profil.");
         }
         setLoading(false);
       }, () => {

@@ -14,11 +14,13 @@ Tanpa konfigurasi Firebase, halaman publik memakai konten contoh yang ditandai s
 ## Firebase Authentication dan Firestore
 
 1. Buat proyek Firebase dan aplikasi Web; isi `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`, serta variabel publik opsional lain di `.env.local`.
-2. Aktifkan metode **Email/Password** dan **Google** di Firebase Authentication.
+2. Aktifkan metode **Email/Password** dan **Google** di Firebase Authentication. Login Google tidak membatasi domain email; akun pribadi dan email kampus dapat digunakan.
 3. Buat database Firestore dan terapkan `firebase/firestore.rules` serta indeks dari `firebase/firestore.indexes.json`.
 4. Jika memakai Firebase Admin di server, berikan service account dengan hak minimum yang diperlukan dan isi `FIREBASE_SERVICE_ACCOUNT_JSON` dengan JSON service-account di environment server. Alternatifnya, siapkan Application Default Credentials dan `FIREBASE_PROJECT_ID`. Jangan pernah menambahkan kunci service account ke Git atau variabel `NEXT_PUBLIC_*`.
-5. Peran pengguna baru selalu `member`. Tetapkan `cohortAdmin` atau `platformAdmin` hanya melalui proses tepercaya/server; Security Rules tidak mengizinkan pengguna menaikkan peran sendiri.
-6. Untuk membuka ruang privat, buat dokumen `classes/{classId}` dengan `memberIds` dan `adminIds` yang dikelola pengurus. Subkoleksi yang didukung: `announcements`, `transactions`, `rules`, `schedules`, dan `documents`. Keanggotaan diverifikasi oleh Firestore Rules, bukan pengalih tampilan demo.
+5. Setiap akun memakai UID Firebase Authentication sebagai ID dokumen `users/{uid}`. Profil menyimpan `displayName`, `username`, `photoURL`, dan `bio`; email tetap berasal dari sesi Authentication. Profil baru selalu berperan `member`.
+6. Pengguna mengajukan keanggotaan melalui `membershipRequests/{uid}_{cohortId}` dengan status awal `pending`. Pengurus yang berwenang untuk angkatan terkait atau `platformAdmin` dapat menyetujui/menolak; hanya status `approved` yang menjadi keanggotaan terverifikasi dan dapat membuka akses kelas terkait. Memilih angkatan saat membuat akun tidak memberikan keanggotaan.
+7. Tetapkan `cohortAdmin` beserta `cohortId` atau `platformAdmin` hanya melalui proses tepercaya/server menggunakan Firebase Admin SDK atau konsol proyek yang aksesnya dibatasi. Firestore Rules mencegah pemilik akun mengubah peran/cakupan angkatannya sendiri; cohort admin hanya mengelola angkatan yang ditugaskan.
+8. Untuk membuka ruang privat, buat dokumen `classes/{classId}` dengan `cohortId`, `memberIds`, dan `adminIds` yang dikelola pengurus. Subkoleksi yang didukung: `announcements`, `transactions`, `rules`, `schedules`, dan `documents`. Marketplace tetap dapat dibaca secara publik.
 
 Untuk menerapkan konfigurasi Firestore, pasang Firebase CLI dan jalankan `firebase deploy --only firestore:rules,firestore:indexes` setelah memilih proyek Firebase yang benar.
 

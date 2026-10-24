@@ -24,7 +24,7 @@ export function LoginForm() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (user && profile) router.replace(profile.role === "cohortAdmin" || profile.role === "platformAdmin" ? "/dashboard" : `/profile/${profile.username}`);
+    if (user && profile) router.replace(profile.role === "cohortAdmin" || profile.role === "platformAdmin" ? "/dashboard" : `/profile/${profile.uid}`);
   }, [user, profile, router]);
 
   async function handleEmailLogin(event: FormEvent<HTMLFormElement>) {
@@ -33,7 +33,7 @@ export function LoginForm() {
     setBusy(true);
     try {
       const result = await signInWithEmail(email, password);
-      router.push(`/profile/${result.user.uid.slice(0, 12)}`);
+      router.push(`/profile/${result.user.uid}`);
     } catch (cause) {
       setError(firebaseError(cause));
     } finally {
@@ -46,7 +46,7 @@ export function LoginForm() {
     setBusy(true);
     try {
       const result = await signInWithGoogle();
-      router.push(`/profile/${result.uid.slice(0, 12)}`);
+      router.push(`/profile/${result.uid}`);
     } catch (cause) {
       setError(firebaseError(cause));
     } finally {
@@ -73,6 +73,7 @@ export function LoginForm() {
           </form>
           <div className="auth-divider"><span>atau</span></div>
           <button className="button button-outline google-button" onClick={handleGoogleLogin} disabled={!configured || busy || loading}><span className="google-mark" aria-hidden="true">G</span> Masuk dengan Google</button>
+          <p className="muted">Akun Google pribadi maupun kampus dapat digunakan.</p>
           <p className="auth-switch">Belum punya akun? <Link href="/register">Daftar di sini</Link></p>
         </div>
       </div>

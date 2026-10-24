@@ -11,7 +11,6 @@ export function RegisterForm() {
   const { configured } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [cohort, setCohort] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -21,8 +20,8 @@ export function RegisterForm() {
     setError("");
     setBusy(true);
     try {
-      const user = await registerWithEmail(email, password, name, cohort);
-      router.push(`/profile/${user.uid.slice(0, 12)}`);
+      const user = await registerWithEmail(email, password, name);
+      router.push(`/profile/${user.uid}`);
     } catch (cause) {
       const code = typeof cause === "object" && cause !== null && "code" in cause ? String(cause.code) : "";
       setError(code.includes("auth/email-already-in-use") ? "Email ini sudah terdaftar. Coba masuk ke akunmu." : cause instanceof Error ? cause.message : "Pendaftaran gagal. Periksa koneksi dan coba lagi.");
@@ -40,13 +39,12 @@ export function RegisterForm() {
       </div>
       <div className="auth-form-side">
         <div className="auth-form-card">
-          <p className="eyebrow">Buat akun baru</p><h2>Gabung HortiKita</h2><p className="muted">Akun baru mendapatkan akses anggota standar.</p>
+          <p className="eyebrow">Buat akun baru</p><h2>Gabung HortiKita</h2><p className="muted">Gunakan email pribadi atau kampus. Akun baru mendapatkan akses anggota standar.</p>
           {!configured && <div className="notice-box notice-warning" role="status">Firebase belum dikonfigurasi. Isi variabel di <code>.env.local</code> untuk mengaktifkan pendaftaran.</div>}
           {error && <div className="notice-box notice-error" role="alert">{error}</div>}
           <form className="auth-form" onSubmit={handleSubmit}>
             <label>Nama lengkap<input autoComplete="name" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} placeholder="Nama kamu" /></label>
             <label>Email<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="nama@email.com" /></label>
-            <label>Angkatan<select required value={cohort} onChange={(event) => setCohort(event.target.value)}><option value="">Pilih angkatan</option><option value="angkatan-24">Angkatan 24</option><option value="angkatan-25">Angkatan 25</option><option value="angkatan-26">Angkatan 26</option><option value="angkatan-27">Angkatan 27</option></select></label>
             <label>Kata sandi<input type="password" autoComplete="new-password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minimal 6 karakter" /></label>
             <button className="button auth-submit" disabled={!configured || busy}>{busy ? "Membuat akun..." : "Buat akun"}</button>
           </form>
