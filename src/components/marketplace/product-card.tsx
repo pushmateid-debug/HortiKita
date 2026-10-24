@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WhatsAppShareButton } from "@/components/marketplace/whatsapp-share-button";
 import type { Product } from "@/lib/demo-data";
 import { formatRupiah } from "@/lib/demo-data";
 
@@ -14,6 +15,12 @@ export function ProductCard({ product }: { product: Product }) {
         <Link href={`/marketplace/${product.id}`} className="product-name">{product.name}</Link>
         <strong className="product-price">{formatRupiah(product.price)}</strong>
         <span className="product-seller">{product.seller}</span>
+        <WhatsAppShareButton
+          className="product-share-button"
+          productId={product.id}
+          productName={product.name}
+          price={product.price}
+        />
       </div>
     </article>
   );

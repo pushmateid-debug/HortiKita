@@ -1,15 +1,64 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DemoBadge } from "@/components/layout/site-shell";
+import { WhatsAppShareButton } from "@/components/marketplace/whatsapp-share-button";
 import { formatRupiah, products } from "@/lib/demo-data";
 
 type Props = { params: Promise<{ productId: string }> };
 
+async function getRequestOrigin() {
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configuredUrl) {
+    const url = new URL(configuredUrl);
+    if (url.protocol === "https:" || url.protocol === "http:") return url.origin;
+    throw new Error("NEXT_PUBLIC_SITE_URL must use HTTP or HTTPS.");
+  }
+
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  if (!host || host.includes(",") || /[/?#@\\\s]/.test(host)) return null;
+
+  const forwardedProtocol = requestHeaders.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProtocol === "http" || forwardedProtocol === "https"
+    ? forwardedProtocol
+    : host.startsWith("localhost") || host.startsWith("127.0.0.1")
+      ? "http"
+      : "https";
+  const url = new URL(`${protocol}://${host}`);
+  if (!/^(https?:)$/.test(url.protocol) || url.username || url.password || url.pathname !== "/") return null;
+  return url.origin;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { productId } = await params;
   const product = products.find((item) => item.id === productId);
-  return { title: product?.name ?? "Produk tidak ditemukan" };
+  if (!product) return { title: "Produk tidak ditemukan" };
+
+  const origin = await getRequestOrigin();
+  const productPath = `/marketplace/${encodeURIComponent(product.id)}`;
+  const productUrl = origin ? new URL(productPath, origin).toString() : undefined;
+  const imageUrl = new URL(product.image);
+  imageUrl.searchParams.delete("auto");
+  imageUrl.searchParams.set("fm", "jpg");
+  imageUrl.searchParams.set("w", "1200");
+  imageUrl.searchParams.set("q", "82");
+  const description = `${formatRupiah(product.price)}. ${product.description}`;
+
+  return {
+    title: product.name,
+    description,
+    ...(productUrl ? { alternates: { canonical: productUrl } } : {}),
+    openGraph: {
+      type: "website",
+      ...(productUrl ? { url: productUrl } : {}),
+      title: product.name,
+      description,
+      siteName: "HortiKita",
+      images: [{ url: imageUrl.toString(), width: 1200, height: 630, alt: product.name }],
+    },
+  };
 }
 
 export default async function ProductDetailPage({ params }: Props) {
@@ -34,7 +83,10 @@ export default async function ProductDetailPage({ params }: Props) {
           </dl>
           <div className="trace-card"><p className="eyebrow">Asal produk</p><p>{product.origin}</p></div>
           <DemoBadge>Produk demonstrasi</DemoBadge>
-          <button type="button" className="button order-button" disabled aria-describedby="contact-note">Pesan via WhatsApp <span aria-hidden="true">↗</span></button>
+          <div className="product-detail-actions">
+            <WhatsAppShareButton productId={product.id} productName={product.name} price={product.price} />
+            <button type="button" className="button order-button" disabled aria-describedby="contact-note">Pesan via WhatsApp <span aria-hidden="true">↗</span></button>
+          </div>
           <p id="contact-note" className="contact-note">Kontak penjual belum tersedia. Kami tidak mencantumkan nomor WhatsApp contoh sebagai kontak nyata.</p>
         </div>
       </div>
